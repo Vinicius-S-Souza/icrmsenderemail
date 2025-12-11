@@ -1,0 +1,97 @@
+# Arquivo de configuração do iCRMSenderEmail
+# Data de criação: 11/12/2025
+# Versão: 1.0.0
+#
+# Copie este arquivo para dbinit.ini e configure com seus dados
+
+[oracle]
+# Credenciais do banco de dados Oracle
+username=seu_usuario
+password=sua_senha
+tns=seu_tns
+
+[email]
+# Provedor de e-mail: mock, smtp, sendgrid, zenvia, pontaltech
+provider=mock
+
+# ===== SMTP (provider=smtp) =====
+smtp_host=smtp.exemplo.com
+smtp_port=587
+smtp_username=usuario@exemplo.com
+smtp_password=senha_smtp
+smtp_use_tls=true
+
+# ===== SendGrid (provider=sendgrid) =====
+sendgrid_api_key=SG.xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# ===== Zenvia (provider=zenvia) =====
+zenvia_api_token=seu_token_zenvia
+
+# ===== Pontaltech (provider=pontaltech) =====
+pontaltech_username=seu_usuario_pontaltech
+pontaltech_password=sua_senha_pontaltech
+pontaltech_account_id=123
+# URL customizada da API (opcional) - deixe vazio para usar a padrão
+# URL padrão: https://pointer-email-api.pontaltech.com.br/send
+# pontaltech_api_url=https://pointer-email-api.pontaltech.com.br/send
+# URL de callback para notificações de status (opcional)
+# pontaltech_callback_url=http://crm.intellisys.com.br/callback/pontaltech/email
+
+# ===== Comum a todos os providers =====
+default_from=noreply@exemplo.com
+max_retries=3
+
+[logger]
+# Diretório de logs
+log_dir=log
+
+# Habilitar saída no console (true/false)
+console_output=true
+
+# Nível de log: debug, info, warn, error
+log_level=info
+
+# Dias de retenção de logs
+retention_days=30
+
+[health]
+# Habilitar health check HTTP (true/false)
+enable_health_check=true
+
+# Porta HTTP para health check
+http_port=8081
+
+[performance]
+# Número de workers para processar e-mails
+worker_count=5
+
+# Tamanho do lote de e-mails por busca
+batch_size=20
+
+# Intervalo entre buscas de e-mails pendentes (segundos)
+fetch_interval_seconds=5
+
+# Timeout para envio de e-mail (segundos)
+send_timeout_seconds=30
+
+# Número de tentativas de retry ao enviar
+retry_attempts=3
+
+# Offset de dias para data de disparo (0 = hoje)
+data_disparo_days_offset=0
+
+# Máximo de tentativas permitidas antes de marcar como falha permanente
+max_tentativas=5
+
+# Threshold do circuit breaker (número de falhas consecutivas)
+circuit_breaker_threshold=10
+
+# Timeout do circuit breaker (segundos)
+circuit_breaker_timeout_seconds=30
+
+[dashboard]
+# Habilitar dashboard web (true/false)
+enable_dashboard=true
+
+# Porta HTTP para o dashboard
+dashboard_port=3101

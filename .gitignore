@@ -1,0 +1,37 @@
+# Binários
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Arquivos de teste
+*.test
+*.out
+
+# Logs
+log/
+*.log
+
+# Configurações locais (mantém dbinit.ini.example)
+dbinit.ini
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporários
+tmp/
+temp/
+*.tmp
+
+# Go
+vendor/
