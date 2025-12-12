@@ -5,6 +5,239 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [1.3.2] - 12/12/2025 23:45
+
+### 🎨 Melhorado
+- **Campos de anexo na página de disparo manual**
+  - Aumentado o tamanho dos campos de anexo (file e URL)
+  - Adicionado padding de 16px para melhor usabilidade
+  - Borda tracejada colorida (dashed) para destacar área de upload
+  - Background azul claro (#f8f9ff) para melhor visibilidade
+  - Efeitos de hover e focus aprimorados
+  - Container do campo com background e padding destacados
+  - Label maior (1.1rem) e em cor roxa (#667eea)
+
+- **Botão fechar no preview de e-mail**
+  - Aumentado tamanho do botão (40x40px)
+  - Adicionado background semitransparente branco
+  - Borda arredondada (8px) para melhor aparência
+  - Efeito de hover com escala e mudança de background
+  - Efeito de click com animação (scale 0.95)
+  - Melhor contraste e visibilidade
+  - Posicionamento mantido no canto superior direito
+
+### 📝 Detalhes Técnicos
+- CSS para `input[type="file"]` e `input[type="url"]` com padding 16px
+- Estilos para `#anexoFileGroup` e `#anexoUrlGroup` com background destacado
+- Botão `.modal-close` com background rgba(255,255,255,0.2)
+- Transições suaves e animações de hover/active
+- Fix no arquivo `pkg/manual/html.go`
+
+## [1.3.1] - 12/12/2025 23:30
+
+### ✨ Adicionado
+- **Handler customizado para inserção de imagens**
+  - Novo diálogo interativo ao clicar no botão de imagem
+  - Opção 1: Inserir URL da imagem (recomendado)
+    - Não aumenta o tamanho do template
+    - Validação automática de URL (deve começar com http:// ou https://)
+    - Mensagem de sucesso ao inserir
+  - Opção 2: Fazer upload de arquivo (base64)
+    - Limite de 2MB por imagem
+    - Aviso sobre aumento de tamanho
+    - Validação de tamanho do arquivo
+  - Atualização automática das estatísticas após inserir imagem
+  - Mensagens claras e orientativas em cada etapa
+
+### 📝 Detalhes Técnicos
+- Função `imageHandler()` customizada para os 3 editores (header, body, footer)
+- Validação de URL com regex
+- Limite de upload: 2MB
+- FileReader API para conversão base64
+- Integração com sistema de estatísticas
+- Fix no arquivo `pkg/template/html.go`
+
+## [1.3.0] - 12/12/2025 23:15
+
+### 🐛 Corrigido
+- **Contador de tamanho não aparecia ao abrir página de novo template**
+  - Adicionada chamada inicial de `updateSizeStats()` após inicialização dos editores
+  - Agora mostra "0 KB" imediatamente ao abrir a página
+  - Fix na função `DOMContentLoaded`
+
+### ✨ Adicionado
+- **Sistema de monitoramento de tamanho de templates em tempo real**
+  - Novo painel na sidebar do editor mostrando estatísticas de tamanho
+  - Indicador visual do tamanho total do HTML em KB
+  - Indicador específico para tamanho de imagens base64
+  - Barras de progresso com cores (verde/amarelo/vermelho) baseadas no uso
+  - Contador de imagens base64 no template
+  - Alertas automáticos quando próximo do limite (80%)
+  - Avisos críticos quando excede o limite da Zenvia (65 KB)
+  - Validação ao salvar com confirmação do usuário
+  - Atualização em tempo real conforme o usuário digita
+
+### 🎨 Interface
+- Seção "📊 Tamanho do Template" na sidebar do editor
+- Indicadores visuais com cores:
+  - Verde: tamanho OK (< 80% do limite)
+  - Amarelo: próximo do limite (80-100%)
+  - Vermelho: excede o limite (> 100%)
+- Mensagens contextuais:
+  - ⚠️ Aviso quando imagens serão removidas automaticamente
+  - ❌ Erro quando conteúdo excede limite mesmo sem imagens
+- Confirmação interativa antes de salvar templates grandes
+
+### 📝 Detalhes Técnicos
+- Função `updateSizeStats()` para calcular tamanho em tempo real
+- Função `countBase64Images()` para identificar e medir imagens
+- Função `getByteSize()` para cálculo preciso em bytes
+- Monitoramento via evento `text-change` dos editores Quill
+- Validação integrada na função `saveTemplate()`
+- Fix no arquivo `pkg/template/html.go`
+
+## [1.2.2] - 12/12/2025 22:30
+
+### 🐛 Corrigido
+- **Correção CRÍTICA no envio de e-mails via Zenvia com imagens base64**
+  - Adicionada validação de tamanho do HTML antes do envio
+  - Implementada remoção automática de imagens base64 quando o HTML exceder 65KB
+  - Mensagens com imagens base64 agora são processadas corretamente
+  - Imagens removidas são substituídas por placeholder informativo
+  - Limite de tamanho: 65.000 bytes (limite da API Zenvia)
+  - Fix no arquivo `pkg/email/zenvia_provider.go`
+  - Adicionados logs detalhados para diagnóstico de tamanho do HTML
+
+### 📝 Detalhes Técnicos
+- Constante `zenviaMaxHTMLLength = 65000` para controle do limite
+- Função `removeBase64Images()` para remover imagens base64 via regex
+- Validação automática no método `Send()` do ZenviaProvider
+- Erro descritivo quando HTML excede limite mesmo após processamento
+
+## [1.2.1] - 12/12/2025 21:00
+
+### 🐛 Corrigido
+- **Correção CRÍTICA no roteamento da API de templates**
+  - Corrigido erro 404 ao acessar `/api/templates/:id`
+  - Adicionado handler específico `handleTemplatesAPIWithID` para rotas com ID
+  - Reorganizada ordem de registro de rotas (rotas mais específicas primeiro)
+  - Corrigido middleware CORS para permitir PUT e DELETE
+  - Fix no arquivo `pkg/dashboard/dashboard.go`
+- **Correção no carregamento de templates na página de edição**
+  - Adicionados logs de debug para diagnóstico
+  - Implementada limpeza dos editores antes de carregar conteúdo
+  - Melhorado tratamento de erros no carregamento
+  - Fix no arquivo `pkg/template/html.go:987-996`
+- **Correção CRÍTICA no preview de templates (disparo manual)**
+  - Corrigida inversão de assunto e corpo no retorno de `ProcessTemplate()`
+  - Função agora retorna corretamente: (assunto, corpo, error)
+  - Preview agora exibe assunto e corpo nas posições corretas
+  - Fix no arquivo `pkg/template/macro.go:198`
+  - Adicionados logs de debug detalhados na função de preview
+
+## [1.2.0] - 12/12/2025 19:30
+
+### ✨ Adicionado
+- **Sistema completo de gerenciamento de templates de e-mail HTML**
+- Tabela `TEMPLATEEMAIL` no banco de dados com suporte a seções (header, body, footer)
+- Campo `TEMPLATE_ID` na tabela `MENSAGEMEMAIL` para vincular e-mails aos templates
+- **Interface web de listagem de templates** com:
+  - Tabela paginada com busca em tempo real
+  - Filtros e ordenação
+  - Ações: Editar, Duplicar, Excluir
+  - Design responsivo com gradiente moderno
+- **Editor WYSIWYG completo** com Quill.js:
+  - 3 editores separados (Header, Body, Footer)
+  - Toolbar rica com formatação completa
+  - Sistema de tabs para alternar seções
+  - Inserção de macros via clique
+  - Preview em tempo real em nova janela
+  - Validação de formulário
+- **Sistema de macros/placeholders** com 9 macros disponíveis:
+  - `{{nome}}` - Nome do cliente
+  - `{{email}}` - E-mail do cliente
+  - `{{cpf_cnpj}}` - CPF/CNPJ do cliente
+  - `{{codigo}}` - Código do cliente
+  - `{{data}}` - Data atual (DD/MM/YYYY)
+  - `{{hora}}` - Hora atual (HH:MM)
+  - `{{data_hora}}` - Data e hora (DD/MM/YYYY HH:MM)
+  - `{{empresa}}` - Nome da empresa
+  - `{{ano}}` - Ano atual
+- **REST API completa para templates** com 10 endpoints:
+  - `GET /api/templates` - Listar (paginado)
+  - `GET /api/templates/:id` - Buscar por ID
+  - `POST /api/templates` - Criar
+  - `PUT /api/templates/:id` - Atualizar
+  - `DELETE /api/templates/:id` - Excluir (soft delete)
+  - `GET /api/templates/macros` - Listar macros
+  - `POST /api/templates/preview` - Preview com dados de exemplo
+  - `POST /api/templates/:id/duplicate` - Duplicar template
+- Botão "📝 Templates" no dashboard principal para acesso rápido
+- Substituição automática de macros usando dados do cliente
+- Validação de macros inválidas
+
+### 🗄️ Banco de Dados
+- Criada tabela `TEMPLATEEMAIL` com campos:
+  - ID, NOME (único), DESCRICAO, HEADER_HTML, BODY_HTML, FOOTER_HTML
+  - ASSUNTO_PADRAO, ATIVO, DATA_CRIACAO, DATA_ATUALIZACAO, CRIADO_POR
+- Adicionado campo `TEMPLATE_ID` em `MENSAGEMEMAIL`
+- Foreign key constraint entre MENSAGEMEMAIL e TEMPLATEEMAIL
+- Índices para otimização de consultas
+- Scripts SQL: `sql/create_table_templateemail.sql`
+
+### 📦 Arquivos Criados
+- `pkg/template/model.go` - Estruturas de dados e DTOs
+- `pkg/template/errors.go` - Erros do domínio
+- `pkg/template/repository.go` - CRUD completo (270 linhas)
+- `pkg/template/macro.go` - Sistema de substituição de macros (150 linhas)
+- `pkg/template/handler.go` - REST API handlers (600 linhas)
+- `pkg/template/html.go` - Interface web (1110 linhas)
+- `sql/create_table_templateemail.sql` - Script de criação
+- `sql/alter_mensagememail_template.sql` - Alteração da tabela existente
+
+### 📝 Mudanças
+- Versão atualizada para **1.2.0**
+- `pkg/message/email.go` - Adicionado campo `TemplateID`
+- `pkg/message/repository.go` - Queries atualizadas com TEMPLATE_ID
+- `pkg/dashboard/dashboard.go` - Interface e rotas para templates
+- `cmd/icrmsenderemail/main.go` - Registro do módulo de templates
+- Dashboard principal agora tem botão laranja para "Templates"
+
+### 🎯 Funcionalidades do Template
+- **CRUD completo**: Criar, editar, listar, duplicar, excluir templates
+- **Soft delete**: Templates excluídos ficam inativos mas não são removidos
+- **Paginação**: Lista de templates com paginação e busca
+- **Validação**: Nome único, corpo obrigatório
+- **Preview**: Visualização com dados de exemplo antes de salvar
+- **Macros**: Substituição automática com dados do cliente
+- **Seções**: Header, Body e Footer editáveis separadamente
+- **Versionamento**: Data de criação e última atualização
+
+### 🐛 Bugs Conhecidos
+Nenhum no momento.
+
+### ⚠️ Notas de Migração
+
+#### De 1.1.0 para 1.2.0
+
+1. **Banco de Dados:**
+   ```bash
+   # Execute os scripts SQL
+   sqlplus usuario/senha@tns @sql/create_table_templateemail.sql
+   sqlplus usuario/senha@tns @sql/alter_mensagememail_template.sql
+   ```
+
+2. **Acesso às Funcionalidades:**
+   - Templates: `http://localhost:3101/templates`
+   - API: `http://localhost:3101/api/templates`
+   - Dashboard atualizado com botão "📝 Templates"
+
+3. **Compatibilidade:**
+   - Totalmente compatível com versão anterior
+   - Módulo de templates é opcional (não quebra funcionalidade existente)
+
+---
+
 ## [1.1.0] - 11/12/2025 16:50
 
 ### ✨ Adicionado

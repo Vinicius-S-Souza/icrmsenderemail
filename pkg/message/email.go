@@ -41,6 +41,7 @@ type Email struct {
 	AnexoNome        sql.NullString
 	AnexoTipo        sql.NullString
 	IPOrigem         sql.NullString
+	TemplateID       sql.NullInt64 // ID do template utilizado
 }
 
 // Priority constants

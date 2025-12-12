@@ -11,25 +11,30 @@ import (
 
 	"github.com/Vinicius-S-Souza/icrmsenderemail/pkg/cliente"
 	"github.com/Vinicius-S-Souza/icrmsenderemail/pkg/message"
+	"github.com/Vinicius-S-Souza/icrmsenderemail/pkg/template"
 	"go.uber.org/zap"
 )
 
 // Handler gerencia as requisições HTTP para disparo manual de e-mail
 type Handler struct {
-	clienteRepo  *cliente.Repository
-	emailRepo    *message.Repository
-	logger       *zap.Logger
-	providerName string // Nome do provider configurado (mock, smtp, sendgrid, zenvia, pontaltech)
+	clienteRepo    *cliente.Repository
+	emailRepo      *message.Repository
+	templateRepo   *template.Repository
+	macroProcessor *template.MacroProcessor
+	logger         *zap.Logger
+	providerName   string // Nome do provider configurado (mock, smtp, sendgrid, zenvia, pontaltech)
 }
 
 // NewHandler cria uma nova instância do handler
-func NewHandler(clienteRepo *cliente.Repository, emailRepo *message.Repository, providerName string) *Handler {
+func NewHandler(clienteRepo *cliente.Repository, emailRepo *message.Repository, templateRepo *template.Repository, macroProcessor *template.MacroProcessor, providerName string) *Handler {
 	logger, _ := zap.NewProduction()
 	return &Handler{
-		clienteRepo:  clienteRepo,
-		emailRepo:    emailRepo,
-		logger:       logger,
-		providerName: providerName,
+		clienteRepo:    clienteRepo,
+		emailRepo:      emailRepo,
+		templateRepo:   templateRepo,
+		macroProcessor: macroProcessor,
+		logger:         logger,
+		providerName:   providerName,
 	}
 }
 
@@ -57,6 +62,7 @@ type DispararEmailRequest struct {
 	Assunto        string `json:"assunto"`
 	Mensagem       string `json:"mensagem"`
 	IsHTML         bool   `json:"isHtml"`
+	TemplateID     int64  `json:"templateId"`     // ID do template (opcional)
 	AttachmentData string `json:"attachmentData"` // Base64 encoded (SendGrid, Pontaltech)
 	AttachmentName string `json:"attachmentName"`
 	AttachmentType string `json:"attachmentType"`
@@ -255,26 +261,77 @@ func (h *Handler) DispararEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Assunto == "" {
-		respondJSON(w, http.StatusBadRequest, DispararEmailResponse{
-			Success: false,
-			Error:   "Assunto não informado",
-		})
-		return
-	}
+	// Se TemplateID fornecido, processar template
+	var assunto, mensagem, tipoCorpo string
+	var templateID sql.NullInt64
 
-	if req.Mensagem == "" {
-		respondJSON(w, http.StatusBadRequest, DispararEmailResponse{
-			Success: false,
-			Error:   "Mensagem não informada",
-		})
-		return
-	}
+	if req.TemplateID > 0 {
+		ctx2, cancel2 := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel2()
 
-	// Determinar tipo de corpo
-	tipoCorpo := "text/plain"
-	if req.IsHTML {
-		tipoCorpo = "text/html"
+		// Buscar template
+		tmpl, err := h.templateRepo.GetByID(ctx2, req.TemplateID)
+		if err != nil {
+			h.logger.Error("Erro ao buscar template", zap.Error(err), zap.Int64("templateId", req.TemplateID))
+			respondJSON(w, http.StatusNotFound, DispararEmailResponse{
+				Success: false,
+				Error:   "Template não encontrado",
+			})
+			return
+		}
+
+		if !tmpl.Ativo {
+			respondJSON(w, http.StatusBadRequest, DispararEmailResponse{
+				Success: false,
+				Error:   "Template está inativo",
+			})
+			return
+		}
+
+		// Processar template com macros do cliente
+		cliCodigoNull := sql.NullInt64{Int64: int64(req.CliCodigo), Valid: true}
+		assuntoProcessado, corpoProcessado, err := h.macroProcessor.ProcessTemplate(ctx2, tmpl, cliCodigoNull)
+		if err != nil {
+			h.logger.Error("Erro ao processar template", zap.Error(err))
+			respondJSON(w, http.StatusInternalServerError, DispararEmailResponse{
+				Success: false,
+				Error:   "Erro ao processar template",
+			})
+			return
+		}
+
+		assunto = assuntoProcessado
+		mensagem = corpoProcessado
+		tipoCorpo = "text/html" // Templates são sempre HTML
+		templateID = sql.NullInt64{Int64: req.TemplateID, Valid: true}
+
+		h.logger.Info("Template processado com sucesso",
+			zap.Int64("templateId", req.TemplateID),
+			zap.Int("cliente", req.CliCodigo))
+	} else {
+		// Modo manual: usar dados do request
+		if req.Assunto == "" {
+			respondJSON(w, http.StatusBadRequest, DispararEmailResponse{
+				Success: false,
+				Error:   "Assunto não informado",
+			})
+			return
+		}
+
+		if req.Mensagem == "" {
+			respondJSON(w, http.StatusBadRequest, DispararEmailResponse{
+				Success: false,
+				Error:   "Mensagem não informada",
+			})
+			return
+		}
+
+		assunto = req.Assunto
+		mensagem = req.Mensagem
+		tipoCorpo = "text/plain"
+		if req.IsHTML {
+			tipoCorpo = "text/html"
+		}
 	}
 
 	// Processar anexo se fornecido
@@ -326,8 +383,8 @@ func (h *Handler) DispararEmail(w http.ResponseWriter, r *http.Request) {
 		CliCodigo:       sql.NullInt64{Int64: int64(req.CliCodigo), Valid: true},
 		Remetente:       "noreply@sistema.com.br", // TODO: tornar configurável
 		Destinatario:    req.Email,
-		Assunto:         req.Assunto,
-		Corpo:           req.Mensagem,
+		Assunto:         assunto,
+		Corpo:           mensagem,
 		TipoCorpo:       tipoCorpo,
 		StatusEnvio:     message.StatusPending,
 		DataCadastro:    time.Now(),
@@ -338,6 +395,7 @@ func (h *Handler) DispararEmail(w http.ResponseWriter, r *http.Request) {
 		AnexoReferencia: anexoReferencia,
 		AnexoNome:       anexoNome,
 		AnexoTipo:       anexoTipo,
+		TemplateID:      templateID,
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -487,4 +545,96 @@ func getClientIP(r *http.Request) string {
 	}
 
 	return ip
+}
+
+// PreviewTemplateRequest é a requisição para preview de template
+type PreviewTemplateRequest struct {
+	TemplateID int64 `json:"templateId"`
+	CliCodigo  int   `json:"cliCodigo"`
+}
+
+// PreviewTemplateResponse é a resposta do preview de template
+type PreviewTemplateResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+	Assunto string `json:"assunto,omitempty"`
+	Corpo   string `json:"corpo,omitempty"`
+}
+
+// PreviewTemplate processa um template com os dados do cliente e retorna o preview
+func (h *Handler) PreviewTemplate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req PreviewTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.logger.Error("Erro ao decodificar requisição", zap.Error(err))
+		respondJSON(w, http.StatusBadRequest, PreviewTemplateResponse{
+			Success: false,
+			Error:   "Requisição inválida",
+		})
+		return
+	}
+
+	if req.TemplateID <= 0 {
+		respondJSON(w, http.StatusBadRequest, PreviewTemplateResponse{
+			Success: false,
+			Error:   "ID do template inválido",
+		})
+		return
+	}
+
+	if req.CliCodigo <= 0 {
+		respondJSON(w, http.StatusBadRequest, PreviewTemplateResponse{
+			Success: false,
+			Error:   "Código do cliente inválido",
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	// Buscar template
+	tmpl, err := h.templateRepo.GetByID(ctx, req.TemplateID)
+	if err != nil {
+		h.logger.Error("Erro ao buscar template", zap.Error(err), zap.Int64("templateId", req.TemplateID))
+		respondJSON(w, http.StatusNotFound, PreviewTemplateResponse{
+			Success: false,
+			Error:   "Template não encontrado",
+		})
+		return
+	}
+
+	if !tmpl.Ativo {
+		respondJSON(w, http.StatusBadRequest, PreviewTemplateResponse{
+			Success: false,
+			Error:   "Template está inativo",
+		})
+		return
+	}
+
+	// Processar template com macros do cliente
+	cliCodigoNull := sql.NullInt64{Int64: int64(req.CliCodigo), Valid: true}
+	assunto, corpo, err := h.macroProcessor.ProcessTemplate(ctx, tmpl, cliCodigoNull)
+	if err != nil {
+		h.logger.Error("Erro ao processar template", zap.Error(err))
+		respondJSON(w, http.StatusInternalServerError, PreviewTemplateResponse{
+			Success: false,
+			Error:   "Erro ao processar template",
+		})
+		return
+	}
+
+	h.logger.Info("Preview de template gerado com sucesso",
+		zap.Int64("templateId", req.TemplateID),
+		zap.Int("cliente", req.CliCodigo))
+
+	respondJSON(w, http.StatusOK, PreviewTemplateResponse{
+		Success: true,
+		Assunto: assunto,
+		Corpo:   corpo,
+	})
 }

@@ -8,7 +8,7 @@ import (
 // Informações de versão do aplicativo
 var (
 	// Version é a versão do aplicativo
-	Version = "1.0.0"
+	Version = "1.3.2"
 
 	// BuildDate é a data de compilação (injetada durante o build via -ldflags)
 	BuildDate = "development"

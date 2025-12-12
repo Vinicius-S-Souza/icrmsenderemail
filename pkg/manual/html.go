@@ -113,6 +113,7 @@ const manualSendHTML = `<!DOCTYPE html>
 
         input[type="text"],
         input[type="email"],
+        select,
         textarea {
             width: 100%;
             padding: 12px;
@@ -122,8 +123,14 @@ const manualSendHTML = `<!DOCTYPE html>
             transition: border-color 0.3s;
         }
 
+        select {
+            cursor: pointer;
+            background-color: white;
+        }
+
         input[type="text"]:focus,
         input[type="email"]:focus,
+        select:focus,
         textarea:focus {
             outline: none;
             border-color: #667eea;
@@ -145,6 +152,49 @@ const manualSendHTML = `<!DOCTYPE html>
             width: 18px;
             height: 18px;
             cursor: pointer;
+        }
+
+        /* Estilos para campos de anexo - aumentados */
+        input[type="file"],
+        input[type="url"] {
+            width: 100%;
+            padding: 16px;
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        input[type="file"]:hover,
+        input[type="url"]:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        input[type="file"]:focus,
+        input[type="url"]:focus {
+            outline: none;
+            border-color: #667eea;
+            border-style: solid;
+            background: white;
+        }
+
+        /* Melhorar visibilidade do campo de anexo */
+        #anexoFileGroup,
+        #anexoUrlGroup {
+            background: #fafbff;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #e8eaf6;
+        }
+
+        #anexoFileGroup label,
+        #anexoUrlGroup label {
+            font-size: 1.1rem;
+            color: #667eea;
+            font-weight: 600;
         }
 
         .button-group {
@@ -346,6 +396,102 @@ const manualSendHTML = `<!DOCTYPE html>
             font-style: italic;
         }
 
+        /* Modal de Preview */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            overflow: auto;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 2% auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 1000px;
+            max-height: 90vh;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 20px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .modal-close {
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 0;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            line-height: 1;
+            position: relative;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: scale(1.1);
+        }
+
+        .modal-close:active {
+            transform: scale(0.95);
+        }
+
+        .modal-body {
+            padding: 30px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .preview-section {
+            margin-bottom: 25px;
+        }
+
+        .preview-section h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .preview-content {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            min-height: 100px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
         @media (max-width: 768px) {
             .button-group {
                 flex-direction: column;
@@ -399,6 +545,20 @@ const manualSendHTML = `<!DOCTYPE html>
             <h2 style="margin-bottom: 20px; color: #333;">2. Compor E-mail</h2>
 
             <div class="form-group">
+                <label for="templateSelect">Modo de Composição</label>
+                <select id="templateSelect" onchange="handleTemplateChange()">
+                    <option value="0">✍️ Compor manualmente</option>
+                </select>
+                <div class="hint">Escolha um template ou componha seu e-mail manualmente</div>
+            </div>
+
+            <div id="templatePreviewGroup" class="form-group" style="display: none;">
+                <button type="button" class="btn-secondary" onclick="previewTemplate()" id="btnPreview">
+                    👁️ Visualizar Preview do Template
+                </button>
+            </div>
+
+            <div class="form-group">
                 <label for="emailDestinatario">E-mail do Destinatário</label>
                 <input type="email" id="emailDestinatario" placeholder="exemplo@email.com">
             </div>
@@ -441,6 +601,26 @@ const manualSendHTML = `<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Modal de Preview -->
+    <div id="previewModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📧 Preview do E-mail</h3>
+                <button class="modal-close" onclick="closePreviewModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="preview-section">
+                    <h4>Assunto:</h4>
+                    <div class="preview-content" id="previewAssunto"></div>
+                </div>
+                <div class="preview-section">
+                    <h4>Corpo do E-mail:</h4>
+                    <div class="preview-content" id="previewCorpo"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let clienteValidado = null;
         let emailIdEnviado = null;
@@ -449,6 +629,10 @@ const manualSendHTML = `<!DOCTYPE html>
         let selectedAttachment = null;
         let selectedAttachmentUrl = "";
         let currentProvider = "";
+        let selectedTemplateId = 0;
+        let availableTemplates = [];
+        let serviceConnected = false;
+        let providerCheckInterval = null;
 
         function showAlert(message, type) {
             const container = document.getElementById('alertContainer');
@@ -664,14 +848,17 @@ const manualSendHTML = `<!DOCTYPE html>
                 return;
             }
 
-            if (!assunto) {
-                showAlert('Por favor, informe o assunto', 'error');
-                return;
-            }
+            // Se não está usando template, validar campos manuais
+            if (selectedTemplateId === 0) {
+                if (!assunto) {
+                    showAlert('Por favor, informe o assunto', 'error');
+                    return;
+                }
 
-            if (!mensagem) {
-                showAlert('Por favor, digite uma mensagem', 'error');
-                return;
+                if (!mensagem) {
+                    showAlert('Por favor, digite uma mensagem', 'error');
+                    return;
+                }
             }
 
             const btnEnviar = document.getElementById('btnEnviar');
@@ -690,6 +877,7 @@ const manualSendHTML = `<!DOCTYPE html>
                         assunto: assunto,
                         mensagem: mensagem,
                         isHtml: isHtml,
+                        templateId: selectedTemplateId,
                         attachmentData: selectedAttachment?.data || "",
                         attachmentName: selectedAttachment?.name || "",
                         attachmentType: selectedAttachment?.type || "",
@@ -834,9 +1022,6 @@ const manualSendHTML = `<!DOCTYPE html>
             statusValue.innerHTML = html;
         }
 
-        let serviceConnected = true;
-        let providerCheckInterval = null;
-
         async function carregarProviderInfo() {
             try {
                 const response = await fetch('/api/manual/provider-info');
@@ -905,6 +1090,140 @@ const manualSendHTML = `<!DOCTYPE html>
             return true;
         }
 
+        // Funções de Template
+        async function carregarTemplates() {
+            try {
+                const response = await fetch('/api/templates?activeOnly=true&limit=100');
+                if (response.ok) {
+                    const data = await response.json();
+                    availableTemplates = data.data || [];
+                    preencherSeletorTemplates();
+                    console.log('Templates carregados:', availableTemplates.length);
+                } else {
+                    console.error('Erro ao carregar templates');
+                }
+            } catch (error) {
+                console.error('Erro ao carregar templates:', error);
+            }
+        }
+
+        function preencherSeletorTemplates() {
+            const select = document.getElementById('templateSelect');
+            select.innerHTML = '<option value="0">✍️ Compor manualmente</option>';
+
+            availableTemplates.forEach(template => {
+                const option = document.createElement('option');
+                option.value = template.id;
+                option.textContent = '📧 ' + template.nome;
+                select.appendChild(option);
+            });
+        }
+
+        function handleTemplateChange() {
+            const select = document.getElementById('templateSelect');
+            selectedTemplateId = parseInt(select.value);
+
+            const previewGroup = document.getElementById('templatePreviewGroup');
+            const assuntoField = document.getElementById('assunto');
+            const mensagemField = document.getElementById('mensagem');
+            const isHtmlCheckbox = document.getElementById('isHtml');
+
+            if (selectedTemplateId > 0) {
+                // Modo template
+                previewGroup.style.display = 'block';
+
+                // Buscar template selecionado
+                const template = availableTemplates.find(t => t.id === selectedTemplateId);
+                if (template) {
+                    assuntoField.value = template.assuntoPadrao || '';
+                    assuntoField.readOnly = true;
+                    mensagemField.value = '[Template será processado automaticamente com dados do cliente]';
+                    mensagemField.readOnly = true;
+                    isHtmlCheckbox.checked = true;
+                    isHtmlCheckbox.disabled = true;
+                }
+            } else {
+                // Modo manual
+                previewGroup.style.display = 'none';
+                assuntoField.readOnly = false;
+                mensagemField.readOnly = false;
+                mensagemField.value = '';
+                isHtmlCheckbox.disabled = false;
+            }
+        }
+
+        async function previewTemplate() {
+            console.log('=== Preview Template ===');
+            console.log('Cliente validado:', clienteValidado);
+            console.log('Template ID selecionado:', selectedTemplateId);
+
+            if (!clienteValidado) {
+                showAlert('⚠️ Por favor, valide um cliente primeiro', 'error');
+                return;
+            }
+
+            if (selectedTemplateId === 0) {
+                showAlert('⚠️ Nenhum template selecionado', 'error');
+                return;
+            }
+
+            const btnPreview = document.getElementById('btnPreview');
+            btnPreview.disabled = true;
+            btnPreview.textContent = 'Carregando preview...';
+
+            const requestData = {
+                templateId: selectedTemplateId,
+                cliCodigo: clienteValidado.cliCodigo
+            };
+            console.log('Request data:', requestData);
+
+            try {
+                console.log('Fazendo requisição para /api/manual/preview-template...');
+                const response = await fetch('/api/manual/preview-template', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (data.success) {
+                    console.log('Preview gerado com sucesso!');
+                    console.log('Assunto:', data.assunto);
+                    console.log('Corpo (primeiros 200 chars):', data.corpo.substring(0, 200));
+
+                    document.getElementById('previewAssunto').textContent = data.assunto;
+                    document.getElementById('previewCorpo').innerHTML = data.corpo;
+                    document.getElementById('previewModal').style.display = 'block';
+                } else {
+                    console.error('Erro no preview:', data.error);
+                    showAlert('❌ Erro ao gerar preview: ' + (data.error || 'Erro desconhecido'), 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao fazer preview:', error);
+                showAlert('❌ Erro ao gerar preview do template: ' + error.message, 'error');
+            } finally {
+                btnPreview.disabled = false;
+                btnPreview.textContent = '👁️ Visualizar Preview do Template';
+            }
+        }
+
+        function closePreviewModal() {
+            document.getElementById('previewModal').style.display = 'none';
+        }
+
+        // Fechar modal ao clicar fora
+        window.onclick = function(event) {
+            const modal = document.getElementById('previewModal');
+            if (event.target === modal) {
+                closePreviewModal();
+            }
+        }
+
         window.addEventListener('beforeunload', () => {
             if (statusCheckInterval) {
                 clearInterval(statusCheckInterval);
@@ -916,6 +1235,7 @@ const manualSendHTML = `<!DOCTYPE html>
 
         carregarProviderInfo();
         providerCheckInterval = setInterval(carregarProviderInfo, 5000);
+        carregarTemplates();
     </script>
 </body>
 </html>

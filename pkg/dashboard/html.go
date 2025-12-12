@@ -44,10 +44,15 @@ const dashboardHTML = `<!DOCTYPE html>
             flex: 1;
         }
 
-        .manual-btn {
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .manual-btn, .templates-btn {
             display: inline-block;
             padding: 12px 24px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             text-decoration: none;
             border-radius: 8px;
@@ -56,9 +61,25 @@ const dashboardHTML = `<!DOCTYPE html>
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         }
 
-        .manual-btn:hover {
+        .manual-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .templates-btn {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+
+        .manual-btn:hover, .templates-btn:hover {
             transform: translateY(-2px);
+        }
+
+        .manual-btn:hover {
             box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        .templates-btn:hover {
+            box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
         }
 
         h1 {
@@ -216,7 +237,10 @@ const dashboardHTML = `<!DOCTYPE html>
                 <span class="subtitle"> | Provedor: <strong id="provider-name">Carregando...</strong></span>
                 <span class="status" id="connection-status">● Conectado</span>
             </div>
-            <a href="/manual" class="manual-btn">📨 Disparo Manual</a>
+            <div class="header-actions">
+                <a href="/templates" class="templates-btn">📝 Templates</a>
+                <a href="/manual" class="manual-btn">📨 Disparo Manual</a>
+            </div>
         </header>
 
         <div class="grid">

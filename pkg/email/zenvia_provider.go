@@ -7,12 +7,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"time"
 
 	"go.uber.org/zap"
 )
 
-const zenviaEmailAPIURL = "https://api.zenvia.com/v2/channels/email/messages"
+const (
+	zenviaEmailAPIURL     = "https://api.zenvia.com/v2/channels/email/messages"
+	zenviaMaxHTMLLength   = 65000 // Limite aproximado para HTML na API Zenvia
+)
 
 // ZenviaProvider implementa Provider para Zenvia Email API
 type ZenviaProvider struct {
@@ -75,18 +79,61 @@ func NewZenviaProvider(apiToken string, logger *zap.Logger) *ZenviaProvider {
 	}
 }
 
+// removeBase64Images remove imagens base64 do HTML para reduzir o tamanho
+func removeBase64Images(html string) string {
+	// Regex para detectar imagens base64 em tags <img src="data:image/...">
+	re := regexp.MustCompile(`<img[^>]*src="data:image/[^"]*"[^>]*>`)
+	// Substitui imagens base64 por um placeholder
+	return re.ReplaceAllString(html, `<p style="color: #999; font-style: italic;">[Imagem removida devido ao tamanho]</p>`)
+}
+
 // Send envia um email via Zenvia API
 func (z *ZenviaProvider) Send(ctx context.Context, email EmailData) (SendResult, error) {
 	z.logger.Debug("Enviando email via Zenvia",
 		zap.String("to", email.To),
 		zap.String("from", email.From))
 
+	// Verificar tamanho do HTML
+	htmlBody := email.Body
+	htmlLength := len(htmlBody)
+
+	z.logger.Debug("Tamanho do HTML",
+		zap.Int("length", htmlLength),
+		zap.Int("max_length", zenviaMaxHTMLLength))
+
+	// Se o HTML for muito grande, tentar remover imagens base64
+	if htmlLength > zenviaMaxHTMLLength {
+		z.logger.Warn("HTML muito grande para Zenvia, removendo imagens base64",
+			zap.Int("original_length", htmlLength),
+			zap.Int("max_length", zenviaMaxHTMLLength))
+
+		htmlBody = removeBase64Images(htmlBody)
+		newLength := len(htmlBody)
+
+		z.logger.Info("HTML processado após remoção de imagens",
+			zap.Int("original_length", htmlLength),
+			zap.Int("new_length", newLength))
+
+		// Se ainda assim estiver muito grande, retornar erro
+		if newLength > zenviaMaxHTMLLength {
+			errorMsg := fmt.Sprintf("HTML muito grande para Zenvia API (%d bytes, máximo %d bytes). Mesmo após remover imagens base64, o conteúdo excede o limite.", newLength, zenviaMaxHTMLLength)
+			z.logger.Error(errorMsg,
+				zap.Int("html_length", newLength),
+				zap.Int("max_length", zenviaMaxHTMLLength))
+
+			return SendResult{
+				Success: false,
+				Error:   fmt.Errorf(errorMsg),
+			}, fmt.Errorf(errorMsg)
+		}
+	}
+
 	// Preparar conteúdo (conforme código WinDev)
 	// O tipo é SEMPRE "email", e o subject vai DENTRO do contents
 	content := ZenviaEmailContent{
 		Type:    "email",
 		Subject: email.Subject,
-		HTML:    email.Body, // Sempre usar HTML (mesmo que seja texto simples)
+		HTML:    htmlBody, // Usar HTML processado (sem imagens base64 se necessário)
 	}
 
 	// IMPORTANTE: Zenvia só aceita anexos via URL pública!

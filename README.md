@@ -1,8 +1,8 @@
 # ICRMSenderEmail
 
 **Data de criação:** 11/12/2025
-**Última atualização:** 11/12/2025 16:50
-**Versão:** 1.1.0
+**Última atualização:** 12/12/2025 23:45
+**Versão:** 1.3.2
 
 Serviço em Golang para envio automatizado de e-mails através de múltiplos provedores (SMTP, SendGrid, Zenvia, Pontaltech), com suporte a dashboard web e disparo manual.
 
@@ -11,11 +11,19 @@ Serviço em Golang para envio automatizado de e-mails através de múltiplos pro
 - ✅ Envio de e-mail via múltiplos provedores
 - ✅ **Suporte a anexos** (base64 e URL pública)
 - ✅ **Detecção automática de tipo de anexo por provider**
+- ✅ **Sistema completo de templates HTML** com editor WYSIWYG
+- ✅ **Macros/placeholders** para personalização de e-mails
+- ✅ **Preview de templates** em tempo real
+- ✅ **Monitoramento de tamanho de templates** em tempo real
+- ✅ **Validação automática de limites da API Zenvia** (65KB)
+- ✅ **Remoção automática de imagens base64** quando exceder limite
+- ✅ **Handler customizado para inserção de imagens** (URL ou upload)
 - ✅ Processamento paralelo com workers
 - ✅ Retry automático com exponential backoff
 - ✅ Circuit breaker para proteção contra falhas
 - ✅ Dashboard web em tempo real (Server-Sent Events)
 - ✅ **Interface web inteligente para disparo manual** (adapta-se ao provider)
+- ✅ **UI moderna e responsiva** com feedback visual
 - ✅ Health check HTTP
 - ✅ Logs estruturados com rotação diária
 - ✅ Métricas de performance
@@ -176,6 +184,46 @@ O dashboard mostra:
 - Tempos médios de processamento
 - Gráficos em tempo real (atualização a cada 2 segundos)
 
+## 📝 Templates de E-mail
+
+Acesse o gerenciador de templates:
+
+```
+http://localhost:3101/templates
+```
+
+### Funcionalidades:
+
+- **CRUD Completo**: Criar, editar, listar, duplicar e excluir templates
+- **Editor WYSIWYG**: Interface rica com Quill.js para edição HTML
+- **Seções Separadas**: Header, Body e Footer editáveis individualmente
+- **Macros Disponíveis**:
+  - `{{nome}}` - Nome do cliente
+  - `{{email}}` - E-mail do cliente
+  - `{{cpf_cnpj}}` - CPF/CNPJ do cliente
+  - `{{codigo}}` - Código do cliente
+  - `{{data}}` - Data atual (DD/MM/YYYY)
+  - `{{hora}}` - Hora atual (HH:MM)
+  - `{{data_hora}}` - Data e hora completa
+  - `{{empresa}}` - Nome da empresa
+  - `{{ano}}` - Ano atual
+- **Preview em Tempo Real**: Visualize como o e-mail ficará antes de salvar
+- **Busca e Paginação**: Encontre templates facilmente
+- **Soft Delete**: Templates excluídos ficam inativos mas não são removidos
+
+### API REST de Templates:
+
+| Método | Endpoint | Descrição |
+|--------|----------|-----------|
+| GET | `/api/templates` | Listar templates (paginado) |
+| GET | `/api/templates/:id` | Buscar por ID |
+| POST | `/api/templates` | Criar novo template |
+| PUT | `/api/templates/:id` | Atualizar template |
+| DELETE | `/api/templates/:id` | Excluir (soft delete) |
+| GET | `/api/templates/macros` | Listar macros disponíveis |
+| POST | `/api/templates/preview` | Preview com dados de exemplo |
+| POST | `/api/templates/:id/duplicate` | Duplicar template |
+
 ## 📨 Disparo Manual
 
 Acesse a interface de disparo manual:
@@ -191,6 +239,7 @@ Funcionalidades:
    - Retorna e-mail de `CLIEXTEMAIL2`
 2. **Compor E-mail**: Destinatário, assunto, corpo
    - Suporte a texto plano ou HTML
+   - Futuramente: Seleção de template com macros
 3. **Acompanhamento**: Status em tempo real do envio
 
 ## 🔍 Health Check
@@ -240,6 +289,13 @@ icrmsenderemail/
 │   ├── cliente/                  # Repository de clientes
 │   ├── dashboard/                # Dashboard web
 │   ├── manual/                   # Handler de disparo manual
+│   ├── template/                 # Sistema de templates ⭐ NOVO
+│   │   ├── model.go             # Estruturas de dados
+│   │   ├── repository.go        # CRUD de templates
+│   │   ├── handler.go           # REST API
+│   │   ├── html.go              # Interface WYSIWYG
+│   │   ├── macro.go             # Sistema de macros
+│   │   └── errors.go            # Erros do domínio
 │   ├── retry/                    # Retry com backoff
 │   ├── control/                  # Graceful shutdown
 │   ├── health/                   # Health check
@@ -247,7 +303,9 @@ icrmsenderemail/
 │   ├── service/                  # Windows Service wrapper
 │   └── version/                  # Informações de versão
 ├── sql/                          # Scripts SQL
-│   └── create_table_mensagememail.sql
+│   ├── create_table_mensagememail.sql
+│   ├── create_table_templateemail.sql ⭐ NOVO
+│   └── alter_mensagememail_template.sql ⭐ NOVO
 ├── log/                          # Logs (criado automaticamente)
 ├── build/                        # Binários compilados
 ├── dbinit.ini.example            # Exemplo de configuração

@@ -23,6 +23,7 @@ import (
 	"github.com/Vinicius-S-Souza/icrmsenderemail/pkg/message"
 	"github.com/Vinicius-S-Souza/icrmsenderemail/pkg/metrics"
 	"github.com/Vinicius-S-Souza/icrmsenderemail/pkg/service"
+	"github.com/Vinicius-S-Souza/icrmsenderemail/pkg/template"
 	"github.com/Vinicius-S-Souza/icrmsenderemail/pkg/version"
 	"go.uber.org/zap"
 )
@@ -313,9 +314,15 @@ func runApplication(ctx context.Context) error {
 		}
 		dashboardServer = dashboard.NewDashboard(dashboardConfig, metricsCollector, repo, log)
 
-		// Registrar endpoints de disparo manual
+		// Registrar endpoints de templates
 		clienteRepo := cliente.NewRepository(db, log)
-		manualHandler := manual.NewHandler(clienteRepo, repo, cfg.Email.Provider)
+		templateRepo := template.NewRepository(db, log)
+		macroProcessor := template.NewMacroProcessor(clienteRepo, "ICRMSenderEmail", log)
+		templateHandler := template.NewHandler(templateRepo, macroProcessor, log)
+		dashboardServer.RegisterTemplateEndpoints(templateHandler)
+
+		// Registrar endpoints de disparo manual (com suporte a templates)
+		manualHandler := manual.NewHandler(clienteRepo, repo, templateRepo, macroProcessor, cfg.Email.Provider)
 		dashboardServer.RegisterManualEndpoints(manualHandler)
 
 		go func() {

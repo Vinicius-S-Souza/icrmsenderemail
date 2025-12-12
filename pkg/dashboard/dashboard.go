@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,11 +27,12 @@ type Dashboard struct {
 	daysOffset     int
 	maxTentativas  int
 	mu             sync.RWMutex
-	clients        map[chan []byte]bool
-	port           int
-	providerName   string
-	mux            *http.ServeMux
-	manualHandler  ManualHandler
+	clients         map[chan []byte]bool
+	port            int
+	providerName    string
+	mux             *http.ServeMux
+	manualHandler   ManualHandler
+	templateHandler TemplateHandler
 }
 
 // Config contém as configurações do dashboard
@@ -49,6 +51,21 @@ type ManualHandler interface {
 	DispararEmail(w http.ResponseWriter, r *http.Request)
 	ConsultarStatus(w http.ResponseWriter, r *http.Request)
 	GetProviderInfo(w http.ResponseWriter, r *http.Request)
+	PreviewTemplate(w http.ResponseWriter, r *http.Request)
+}
+
+// TemplateHandler interface para handlers de templates
+type TemplateHandler interface {
+	ServeTemplateList(w http.ResponseWriter, r *http.Request)
+	ServeTemplateEditor(w http.ResponseWriter, r *http.Request)
+	ListTemplates(w http.ResponseWriter, r *http.Request)
+	GetTemplate(w http.ResponseWriter, r *http.Request)
+	CreateTemplate(w http.ResponseWriter, r *http.Request)
+	UpdateTemplate(w http.ResponseWriter, r *http.Request)
+	DeleteTemplate(w http.ResponseWriter, r *http.Request)
+	GetMacros(w http.ResponseWriter, r *http.Request)
+	PreviewTemplate(w http.ResponseWriter, r *http.Request)
+	DuplicateTemplate(w http.ResponseWriter, r *http.Request)
 }
 
 // MetricsSnapshot representa um snapshot das métricas
@@ -91,6 +108,11 @@ func (d *Dashboard) RegisterManualEndpoints(handler ManualHandler) {
 	d.manualHandler = handler
 }
 
+// RegisterTemplateEndpoints registra os endpoints de templates
+func (d *Dashboard) RegisterTemplateEndpoints(handler TemplateHandler) {
+	d.templateHandler = handler
+}
+
 // Start inicia o servidor do dashboard
 func (d *Dashboard) Start() error {
 	d.mux = http.NewServeMux()
@@ -106,6 +128,20 @@ func (d *Dashboard) Start() error {
 		d.mux.HandleFunc("/api/manual/disparar", d.manualHandler.DispararEmail)
 		d.mux.HandleFunc("/api/manual/status", d.manualHandler.ConsultarStatus)
 		d.mux.HandleFunc("/api/manual/provider-info", d.manualHandler.GetProviderInfo)
+		d.mux.HandleFunc("/api/manual/preview-template", d.manualHandler.PreviewTemplate)
+	}
+
+	// Endpoints de templates (se configurado)
+	if d.templateHandler != nil {
+		// Páginas web
+		d.mux.HandleFunc("/templates", d.templateHandler.ServeTemplateList)
+		d.mux.HandleFunc("/templates/novo", d.templateHandler.ServeTemplateEditor)
+		d.mux.HandleFunc("/templates/", d.handleTemplateRoute)
+		// API REST - ordem importa! Rotas mais específicas primeiro
+		d.mux.HandleFunc("/api/templates/macros", d.templateHandler.GetMacros)
+		d.mux.HandleFunc("/api/templates/preview", d.templateHandler.PreviewTemplate)
+		d.mux.HandleFunc("/api/templates/", d.handleTemplatesAPIWithID)
+		d.mux.HandleFunc("/api/templates", d.handleTemplatesAPI)
 	}
 
 	// Servir página principal do dashboard
@@ -258,7 +294,7 @@ func (d *Dashboard) getMetricsSnapshot() MetricsSnapshot {
 func (d *Dashboard) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 		if r.Method == "OPTIONS" {
@@ -279,4 +315,57 @@ func (d *Dashboard) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(dashboardHTML))
+}
+
+// handleTemplateRoute roteia requisições de templates (GET /templates/:id/editar)
+func (d *Dashboard) handleTemplateRoute(w http.ResponseWriter, r *http.Request) {
+	// /templates/:id/editar
+	if strings.HasSuffix(r.URL.Path, "/editar") {
+		d.templateHandler.ServeTemplateEditor(w, r)
+		return
+	}
+	http.NotFound(w, r)
+}
+
+// handleTemplatesAPI roteia requisições da API de templates (sem ID)
+func (d *Dashboard) handleTemplatesAPI(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// GET /api/templates - listar todos
+		d.templateHandler.ListTemplates(w, r)
+	case http.MethodPost:
+		// POST /api/templates - criar novo
+		d.templateHandler.CreateTemplate(w, r)
+	default:
+		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleTemplatesAPIWithID roteia requisições da API de templates (com ID)
+func (d *Dashboard) handleTemplatesAPIWithID(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// GET /api/templates/:id ou /api/templates/:id/duplicate
+		if strings.HasSuffix(r.URL.Path, "/duplicate") {
+			// Não permitir duplicate via GET
+			http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
+		} else {
+			d.templateHandler.GetTemplate(w, r)
+		}
+	case http.MethodPost:
+		// POST /api/templates/:id/duplicate
+		if strings.HasSuffix(r.URL.Path, "/duplicate") {
+			d.templateHandler.DuplicateTemplate(w, r)
+		} else {
+			http.Error(w, "Rota não encontrada", http.StatusNotFound)
+		}
+	case http.MethodPut:
+		// PUT /api/templates/:id
+		d.templateHandler.UpdateTemplate(w, r)
+	case http.MethodDelete:
+		// DELETE /api/templates/:id
+		d.templateHandler.DeleteTemplate(w, r)
+	default:
+		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
+	}
 }

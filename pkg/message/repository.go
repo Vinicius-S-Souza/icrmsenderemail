@@ -25,12 +25,12 @@ func NewRepository(db *sql.DB, logger *zap.Logger) *Repository {
 // GetPendingEmails busca emails pendentes para envio
 func (r *Repository) GetPendingEmails(ctx context.Context, limit, daysOffset, maxTentativas int) ([]Email, error) {
 	query := `
-		SELECT 
-			ID, CLICODIGO, REMETENTE, DESTINATARIO, ASSUNTO, 
-			CORPO, TIPO_CORPO, STATUS_ENVIO, DATA_CADASTRO, 
-			DATA_AGENDAMENTO, DATA_ENVIO, QTD_TENTATIVAS, 
+		SELECT
+			ID, CLICODIGO, REMETENTE, DESTINATARIO, ASSUNTO,
+			CORPO, TIPO_CORPO, STATUS_ENVIO, DATA_CADASTRO,
+			DATA_AGENDAMENTO, DATA_ENVIO, QTD_TENTATIVAS,
 			DETALHES_ERRO, ID_PROVIDER, METODO_ENVIO, PRIORIDADE,
-			ANEXO_REFERENCIA, ANEXO_NOME, ANEXO_TIPO, IP_ORIGEM
+			ANEXO_REFERENCIA, ANEXO_NOME, ANEXO_TIPO, IP_ORIGEM, TEMPLATE_ID
 		FROM MENSAGEMEMAIL
 		WHERE STATUS_ENVIO = 0
 		  AND QTD_TENTATIVAS < :1
@@ -52,7 +52,7 @@ func (r *Repository) GetPendingEmails(ctx context.Context, limit, daysOffset, ma
 			&e.Corpo, &e.TipoCorpo, &e.StatusEnvio, &e.DataCadastro,
 			&e.DataAgendamento, &e.DataEnvio, &e.QTDTentativas,
 			&e.DetalhesErro, &e.IDProvider, &e.MetodoEnvio, &e.Prioridade,
-			&e.AnexoReferencia, &e.AnexoNome, &e.AnexoTipo, &e.IPOrigem,
+			&e.AnexoReferencia, &e.AnexoNome, &e.AnexoTipo, &e.IPOrigem, &e.TemplateID,
 		)
 		if err != nil {
 			r.logger.Error("Erro ao escanear email", zap.Error(err))
@@ -145,12 +145,12 @@ func (r *Repository) MarkAsPermanentFailure(ctx context.Context, id int64, error
 // GetByID busca um email por ID
 func (r *Repository) GetByID(ctx context.Context, id int64) (*Email, error) {
 	query := `
-		SELECT 
-			ID, CLICODIGO, REMETENTE, DESTINATARIO, ASSUNTO, 
-			CORPO, TIPO_CORPO, STATUS_ENVIO, DATA_CADASTRO, 
-			DATA_AGENDAMENTO, DATA_ENVIO, QTD_TENTATIVAS, 
+		SELECT
+			ID, CLICODIGO, REMETENTE, DESTINATARIO, ASSUNTO,
+			CORPO, TIPO_CORPO, STATUS_ENVIO, DATA_CADASTRO,
+			DATA_AGENDAMENTO, DATA_ENVIO, QTD_TENTATIVAS,
 			DETALHES_ERRO, ID_PROVIDER, METODO_ENVIO, PRIORIDADE,
-			ANEXO_REFERENCIA, ANEXO_NOME, ANEXO_TIPO, IP_ORIGEM
+			ANEXO_REFERENCIA, ANEXO_NOME, ANEXO_TIPO, IP_ORIGEM, TEMPLATE_ID
 		FROM MENSAGEMEMAIL
 		WHERE ID = :1`
 
@@ -160,7 +160,7 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*Email, error) {
 		&e.Corpo, &e.TipoCorpo, &e.StatusEnvio, &e.DataCadastro,
 		&e.DataAgendamento, &e.DataEnvio, &e.QTDTentativas,
 		&e.DetalhesErro, &e.IDProvider, &e.MetodoEnvio, &e.Prioridade,
-		&e.AnexoReferencia, &e.AnexoNome, &e.AnexoTipo, &e.IPOrigem,
+		&e.AnexoReferencia, &e.AnexoNome, &e.AnexoTipo, &e.IPOrigem, &e.TemplateID,
 	)
 
 	if err == sql.ErrNoRows {
@@ -180,20 +180,20 @@ func (r *Repository) InsertEmail(ctx context.Context, email *Email) (int64, erro
 			ID, CLICODIGO, REMETENTE, DESTINATARIO, ASSUNTO,
 			CORPO, TIPO_CORPO, STATUS_ENVIO, DATA_CADASTRO,
 			DATA_AGENDAMENTO, PRIORIDADE, IP_ORIGEM,
-			ANEXO_REFERENCIA, ANEXO_NOME, ANEXO_TIPO
+			ANEXO_REFERENCIA, ANEXO_NOME, ANEXO_TIPO, TEMPLATE_ID
 		) VALUES (
 			SEQ_MENSAGEMEMAIL.NEXTVAL, :1, :2, :3, :4,
 			:5, :6, :7, SYSDATE,
 			:8, :9, :10,
-			:11, :12, :13
-		) RETURNING ID INTO :14`
+			:11, :12, :13, :14
+		) RETURNING ID INTO :15`
 
 	var id int64
 	_, err := r.db.ExecContext(ctx, query,
 		email.CliCodigo, email.Remetente, email.Destinatario, email.Assunto,
 		email.Corpo, email.TipoCorpo, int(email.StatusEnvio), // Convert EmailStatus to int
 		email.DataAgendamento, email.Prioridade, email.IPOrigem,
-		email.AnexoReferencia, email.AnexoNome, email.AnexoTipo,
+		email.AnexoReferencia, email.AnexoNome, email.AnexoTipo, email.TemplateID,
 		sql.Out{Dest: &id},
 	)
 
